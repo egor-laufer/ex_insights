@@ -1,274 +1,4 @@
 defmodule ExInsights do
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   @moduledoc """
   Exposes methods for POST events & metrics to Azure Application Insights.
   For more information on initialization and usage consult the [README.md](readme.html)
@@ -291,6 +21,11 @@ defmodule ExInsights do
   A map of `[name -> number]` to add measurement data to a tracking request
   """
   @type measurements :: %{optional(name) => number}
+
+  @typedoc ~S"""
+  A map of `[name -> string]` to add tags to a tracking request
+  """
+  @type tags :: %{optional(name) => String.t()}
 
   @typedoc ~S"""
   Defines the level of severity for the event.
@@ -325,11 +60,18 @@ defmodule ExInsights do
           name :: name,
           properties :: properties,
           measurements :: measurements,
+          tags :: tags,
           instrumentation_key :: instrumentation_key
         ) :: :ok
-  def track_event(name, properties \\ %{}, measurements \\ %{}, instrumentation_key \\ nil)
+  def track_event(
+        name,
+        properties \\ %{},
+        measurements \\ %{},
+        tags \\ %{},
+        instrumentation_key \\ nil
+      )
       when is_binary(name) do
-    Payload.create_event_payload(name, properties, measurements)
+    Payload.create_event_payload(name, properties, measurements, tags)
     |> track(instrumentation_key)
   end
 
@@ -349,10 +91,17 @@ defmodule ExInsights do
           String.t(),
           severity_level :: severity_level,
           properties :: properties,
+          tags :: tags,
           instrumentation_key :: instrumentation_key
         ) :: :ok
-  def track_trace(message, severity_level \\ :info, properties \\ %{}, instrumentation_key \\ nil) do
-    Payload.create_trace_payload(message, severity_level, properties)
+  def track_trace(
+        message,
+        severity_level \\ :info,
+        properties \\ %{},
+        tags \\ %{},
+        instrumentation_key \\ nil
+      ) do
+    Payload.create_trace_payload(message, severity_level, properties, tags)
     |> track(instrumentation_key)
   end
 
@@ -375,6 +124,7 @@ defmodule ExInsights do
           String.t() | nil,
           properties :: properties,
           measurements :: measurements,
+          tags :: tags,
           instrumentation_key :: instrumentation_key
         ) :: :ok
   def track_exception(
@@ -383,9 +133,17 @@ defmodule ExInsights do
         handle_at \\ nil,
         properties \\ %{},
         measurements \\ %{},
+        tags \\ %{},
         instrumentation_key \\ nil
       ) do
-    Payload.create_exception_payload(exception, stack_trace, handle_at, properties, measurements)
+    Payload.create_exception_payload(
+      exception,
+      stack_trace,
+      handle_at,
+      properties,
+      measurements,
+      tags
+    )
     |> track(instrumentation_key)
   end
 
@@ -407,11 +165,12 @@ defmodule ExInsights do
           name :: name,
           number,
           properties :: properties,
+          tags :: tags,
           instrumentation_key :: instrumentation_key
         ) :: :ok
-  def track_metric(name, value, properties \\ %{}, instrumentation_key \\ nil)
+  def track_metric(name, value, properties \\ %{}, tags \\ %{}, instrumentation_key \\ nil)
       when is_binary(name) do
-    Payload.create_metric_payload(name, value, properties)
+    Payload.create_metric_payload(name, value, properties, tags)
     |> track(instrumentation_key)
   end
 
@@ -440,6 +199,7 @@ defmodule ExInsights do
           String.t(),
           String.t() | nil,
           properties :: properties,
+          tags :: tags,
           instrumentation_key :: instrumentation_key
         ) :: :ok
   def track_dependency(
@@ -450,6 +210,7 @@ defmodule ExInsights do
         dependency_type_name \\ "",
         target \\ nil,
         properties \\ %{},
+        tags \\ %{},
         instrumentation_key \\ nil
       ) do
     Payload.create_dependency_payload(
@@ -459,7 +220,8 @@ defmodule ExInsights do
       success,
       dependency_type_name,
       target,
-      properties
+      properties,
+      tags
     )
     |> track(instrumentation_key)
   end
@@ -492,6 +254,7 @@ defmodule ExInsights do
           properties :: properties,
           measurements :: measurements,
           id :: String.t() | nil,
+          tags :: tags,
           instrumentation_key :: instrumentation_key
         ) ::
           :ok
@@ -505,9 +268,11 @@ defmodule ExInsights do
         properties \\ %{},
         measurements \\ %{},
         id \\ nil,
+        tags \\ %{},
         instrumentation_key \\ nil
       ) do
-    id = if (id == nil), do: Base.encode16(<<:rand.uniform(438_964_124)::size(32)>>), else: id
+    id = if id == nil, do: Base.encode16(<<:rand.uniform(438_964_124)::size(32)>>), else: id
+
     Payload.create_request_payload(
       name,
       url,
@@ -517,7 +282,8 @@ defmodule ExInsights do
       success,
       properties,
       measurements,
-      id
+      id,
+      tags
     )
     |> track(instrumentation_key)
   end
